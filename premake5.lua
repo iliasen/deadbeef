@@ -733,6 +733,26 @@ project "vfs_zip"
   pkgconfig ("libzip")
 end
 
+if option ("plugin-sacd_iso", "libavcodec libavutil") then
+project "sacd_iso"
+  targetname "sacd_iso"
+  files {
+    "plugins/sacd_iso/sacd_iso.c",
+    "plugins/sacd_iso/libsacd/scarletbook.c",
+    "plugins/sacd_iso/libsacd/scarletbook_read.c",
+    "plugins/sacd_iso/libsacd/scarletbook_helpers.c",
+    "plugins/sacd_iso/libsacd/sacd_input.c",
+    "plugins/sacd_iso/libsacd/sacd_reader.c",
+    "plugins/sacd_iso/libsacd/dst_decoder.c",
+  }
+  includedirs {
+    "plugins/sacd_iso/libsacd",
+  }
+  defines {"HAVE_FFMPEG=1"}
+  pkgconfig ("libavcodec libavutil")
+  links {"avcodec", "avutil"}
+end
+
 if option ("plugin-vtx") then
 project "vtx"
   files {

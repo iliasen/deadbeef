@@ -132,6 +132,7 @@ AC_ARG_ENABLE(portable, [AS_HELP_STRING([--enable-portable ], [make portable bui
 AC_ARG_ENABLE(src,      [AS_HELP_STRING([--enable-src      ], [build libsamplerate (SRC) plugin (default: auto)])], [enable_src=$enableval], [enable_src=yes])
 AC_ARG_ENABLE(m3u,      [AS_HELP_STRING([--enable-m3u      ], [build m3u plugin (default: auto)])], [enable_m3u=$enableval], [enable_m3u=yes])
 AC_ARG_ENABLE(vfs-zip,      [AS_HELP_STRING([--enable-vfs-zip      ], [build vfs_zip plugin (default: auto)])], [enable_vfs_zip=$enableval], [enable_vfs_zip=yes])
+AC_ARG_ENABLE(sacd-iso,     [AS_HELP_STRING([--enable-sacd-iso     ], [build SACD ISO plugin (default: auto)])], [enable_sacd_iso=$enableval], [enable_sacd_iso=yes])
 AC_ARG_ENABLE(converter,      [AS_HELP_STRING([--enable-converter      ], [build converter plugin (default: auto)])], [enable_converter=$enableval], [enable_converter=yes])
 AC_ARG_ENABLE(medialib, [AS_HELP_STRING([--enable-medialib      ], [build media library plugin (default: auto)])], [enable_medialib=$enableval], [enable_medialib=yes])
 AC_ARG_ENABLE(dumb,      [AS_HELP_STRING([--enable-dumb      ], [build DUMB plugin (default: auto)])], [enable_dumb=$enableval], [enable_dumb=yes])
@@ -826,6 +827,10 @@ AS_IF([test "${enable_vfs_zip}" != "no"], [
     ])
 ])
 
+AS_IF([test "${enable_sacd_iso}" != "no"], [
+    PKG_CHECK_MODULES([AVCODEC], [libavcodec libavutil], [HAVE_SACD_ISO=yes], [HAVE_SACD_ISO=no])
+])
+
 AS_IF([test "${enable_converter}" != "no"], [
     AS_IF([test "${HAVE_GTK2}" = "yes" -o "${HAVE_GTK3}" = "yes"], [
         HAVE_CONVERTER=yes
@@ -880,7 +885,7 @@ AS_IF([test "${enable_soundtouch}" != "no"], [
     HAVE_SOUNDTOUCH=yes
 ])
 
-PLUGINS_DIRS="plugins/liboggedit plugins/lastfm plugins/mp3 plugins/vorbis plugins/opus plugins/flac plugins/wavpack plugins/sndfile plugins/vfs_curl plugins/cdda plugins/gtkui plugins/alsa plugins/ffmpeg plugins/hotkeys plugins/oss plugins/artwork plugins/adplug plugins/ffap plugins/sid plugins/nullout plugins/supereq plugins/vtx plugins/gme plugins/pulse plugins/notify plugins/musepack plugins/wildmidi plugins/tta plugins/dca plugins/aac plugins/mms plugins/shellexec plugins/shellexecui plugins/dsp_libsrc plugins/m3u plugins/vfs_zip plugins/converter plugins/dumb plugins/shn plugins/psf plugins/mono2stereo plugins/alac plugins/wma plugins/pltbrowser plugins/coreaudio plugins/sc68 plugins/rg_scanner plugins/soundtouch plugins/medialib plugins/lyrics plugins/mpris"
+PLUGINS_DIRS="plugins/liboggedit plugins/lastfm plugins/mp3 plugins/vorbis plugins/opus plugins/flac plugins/wavpack plugins/sndfile plugins/vfs_curl plugins/cdda plugins/gtkui plugins/alsa plugins/ffmpeg plugins/hotkeys plugins/oss plugins/artwork plugins/adplug plugins/ffap plugins/sid plugins/nullout plugins/supereq plugins/vtx plugins/gme plugins/pulse plugins/notify plugins/musepack plugins/wildmidi plugins/tta plugins/dca plugins/aac plugins/mms plugins/shellexec plugins/shellexecui plugins/dsp_libsrc plugins/m3u plugins/vfs_zip plugins/sacd_iso plugins/converter plugins/dumb plugins/shn plugins/psf plugins/mono2stereo plugins/alac plugins/wma plugins/pltbrowser plugins/coreaudio plugins/sc68 plugins/rg_scanner plugins/soundtouch plugins/medialib plugins/lyrics plugins/mpris"
 
 AM_CONDITIONAL(APE_USE_YASM, test "x$APE_USE_YASM" = "xyes")
 AM_CONDITIONAL(HAVE_VORBIS, test "x$HAVE_VORBISPLUGIN" = "xyes")
@@ -897,6 +902,7 @@ AM_CONDITIONAL(HAVE_GTK3, test "x$HAVE_GTK3" = "xyes")
 AM_CONDITIONAL(HAVE_ALSA, test "x$HAVE_ALSAPLUGIN" = "xyes")
 AM_CONDITIONAL(HAVE_COREAUDIO, test "x$HAVE_COREAUDIO" = "xyes")
 AM_CONDITIONAL(HAVE_FFMPEG, test "x$HAVE_FFMPEGPLUGIN" = "xyes")
+AM_CONDITIONAL(HAVE_SACD_ISO, test "x$HAVE_SACD_ISO" = "xyes")
 AM_CONDITIONAL(HAVE_PIPEWIRE, test "x$HAVE_PIPEWIRE_PLUGIN" = "xyes")
 AM_CONDITIONAL(HAVE_PULSE, test "x$HAVE_PULSEPLUGIN" = "xyes")
 AM_CONDITIONAL(HAVE_ARTWORK, test "x$HAVE_ARTWORK" = "xyes")
@@ -1003,6 +1009,7 @@ plugins/mms/Makefile
 plugins/dsp_libsrc/Makefile
 plugins/m3u/Makefile
 plugins/vfs_zip/Makefile
+plugins/sacd_iso/Makefile
 plugins/converter/Makefile
 plugins/dumb/Makefile
 plugins/psf/Makefile
@@ -1100,6 +1107,7 @@ PRINT_PLUGIN_INFO([supereq],[Equalizer based on Super EQ library by Naoki Shibat
 PRINT_PLUGIN_INFO([tta],[TTA player plugin],[test "x$HAVE_TTA" = "xyes"])
 PRINT_PLUGIN_INFO([vfs_curl],[http/ftp streaming support],[test "x$HAVE_VFS_CURL" = "xyes"])
 PRINT_PLUGIN_INFO([vfs_zip],[zip archive support],[test "x$HAVE_VFS_ZIP" = "xyes"])
+PRINT_PLUGIN_INFO([sacd_iso],[SACD ISO player (DSD/DST)],[test "x$HAVE_SACD_ISO" = "xyes"])
 PRINT_PLUGIN_INFO([vorbis],[ogg vorbis player],[test "x$HAVE_VORBISPLUGIN" = "xyes"])
 PRINT_PLUGIN_INFO([vtx],[vtx file player (ay8910/12 emulation)],[test "x$HAVE_VTX" = "xyes"])
 PRINT_PLUGIN_INFO([wavpack],[wavpack player],[test "x$HAVE_WAVPACKPLUGIN" = "xyes"])
