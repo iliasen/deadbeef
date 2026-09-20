@@ -16816,7 +16816,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2600;
+				LastUpgradeCheck = 2700;
 				ORGANIZATIONNAME = "Oleksiy Yakovenko";
 				TargetAttributes = {
 					2D00F23E2434DE4E000FC130 = {
@@ -24806,8 +24806,9 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../PlugIns",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				WARNING_CFLAGS = "-Wliteral-conversion";
 			};
 			name = Debug;
@@ -24864,7 +24865,8 @@
 					"@executable_path/../Frameworks",
 					"@executable_path/../PlugIns",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 10.13;
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				WARNING_CFLAGS = "-Wliteral-conversion";
 			};
 			name = Release;
@@ -24995,8 +24997,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ANALYZER_DEADCODE_DEADSTORES = NO;
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_LINK_OBJC_RUNTIME = NO;
 				CLANG_WARN_ENUM_CONVERSION = NO;
 				DEAD_CODE_STRIPPING = YES;
 				EXECUTABLE_PREFIX = lib;
@@ -25006,6 +25006,7 @@
 					"HAVE_SYS_PARAM_H=1",
 					"FLAC__HAS_OGG=1",
 					"FLAC__ALIGN_MALLOC_DATA=1",
+					"HAVE_FSEEKO=1",
 				);
 				"GCC_PREPROCESSOR_DEFINITIONS[arch=arm64]" = (
 					"$(inherited)",
@@ -25045,8 +25046,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ANALYZER_DEADCODE_DEADSTORES = NO;
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_LINK_OBJC_RUNTIME = NO;
 				CLANG_WARN_ENUM_CONVERSION = NO;
 				DEAD_CODE_STRIPPING = YES;
 				EXECUTABLE_PREFIX = lib;
@@ -25057,6 +25056,7 @@
 					"FLAC__HAS_OGG=1",
 					"FLAC__ALIGN_MALLOC_DATA=1",
 					NDEBUG,
+					"HAVE_FSEEKO=1",
 				);
 				"GCC_PREPROCESSOR_DEFINITIONS[arch=arm64]" = (
 					"$(inherited)",
