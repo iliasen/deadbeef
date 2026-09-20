@@ -70,10 +70,30 @@ static uint32_t sacd_dev_input_total_sectors(sacd_input_t dev) {
     return (uint32_t)(file_stat.st_size / SACD_LSN_SIZE);
 }
 
-sacd_input_t (*sacd_input_open)(const char *) = sacd_dev_input_open;
-int (*sacd_input_close)(sacd_input_t) = sacd_dev_input_close;
-uint32_t (*sacd_input_read)(sacd_input_t, uint32_t, uint32_t, void *) = sacd_dev_input_read;
-char *(*sacd_input_error)(sacd_input_t) = sacd_dev_input_error;
-int (*sacd_input_authenticate)(sacd_input_t) = sacd_dev_input_authenticate;
-int (*sacd_input_decrypt)(sacd_input_t, uint8_t *, uint32_t) = sacd_dev_input_decrypt;
-uint32_t (*sacd_input_total_sectors)(sacd_input_t) = sacd_dev_input_total_sectors;
+sacd_input_t sacd_input_open(const char *target) {
+    return sacd_dev_input_open(target);
+}
+
+int sacd_input_close(sacd_input_t dev) {
+    return sacd_dev_input_close(dev);
+}
+
+uint32_t sacd_input_read(sacd_input_t dev, uint32_t pos, uint32_t blocks, void *buffer) {
+    return sacd_dev_input_read(dev, pos, blocks, buffer);
+}
+
+char *sacd_input_error(sacd_input_t dev) {
+    return sacd_dev_input_error(dev);
+}
+
+int sacd_input_authenticate(sacd_input_t dev) {
+    return sacd_dev_input_authenticate(dev);
+}
+
+int sacd_input_decrypt(sacd_input_t dev, uint8_t *buffer, uint32_t blocks) {
+    return sacd_dev_input_decrypt(dev, buffer, blocks);
+}
+
+uint32_t sacd_input_total_sectors(sacd_input_t dev) {
+    return sacd_dev_input_total_sectors(dev);
+}

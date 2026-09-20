@@ -9,6 +9,9 @@
 
 #define MAX_DST_SIZE (1024 * 64)
 
+static int scarletbook_read_master_toc(scarletbook_handle_t *handle);
+static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx);
+
 scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd) {
     scarletbook_handle_t *sb = calloc(1, sizeof(*sb));
     if (!sb) return NULL;
@@ -27,6 +30,13 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd) {
         free(sb->frame.data);
         free(sb);
         return NULL;
+    }
+
+    if (sb->master_toc->area_1_toc_size > MAX_AREA_TOC_SIZE_LSN) {
+        sb->master_toc->area_1_toc_size = MAX_AREA_TOC_SIZE_LSN;
+    }
+    if (sb->master_toc->area_2_toc_size > MAX_AREA_TOC_SIZE_LSN) {
+        sb->master_toc->area_2_toc_size = MAX_AREA_TOC_SIZE_LSN;
     }
 
     if (sb->master_toc->area_1_toc_1_start > 0) {
@@ -202,8 +212,8 @@ static int scarletbook_read_master_toc(scarletbook_handle_t *handle) {
         if (i == 0) {
             const char *cs = character_set[handle->master_toc->locales[i].character_set & 0x07];
 #define COPY_TEXT(field, pos) \
-    if (master_text->pos) \
-        handle->master_text.field = strdup((char *)master_text + master_text->pos)
+    if (master_text->pos && master_text->pos < sizeof(master_sacd_text_t)) \
+        handle->master_text.field = strndup((char *)master_text + master_text->pos, sizeof(master_sacd_text_t) - master_text->pos)
 
             COPY_TEXT(album_title, album_title_position);
             COPY_TEXT(album_title_phonetic, album_title_phonetic_position);
@@ -253,8 +263,8 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
     const char *cs = character_set[area_toc->languages[0].character_set & 0x07];
 
 #define COPY_AREA_TEXT(field, pos) \
-    if (area_toc->pos) \
-        area->field = strdup((char *)area_toc + area_toc->pos)
+    if (area_toc->pos && area_toc->pos < (uint32_t)area_toc->size * SACD_LSN_SIZE) \
+        area->field = strndup((char *)area_toc + area_toc->pos, (uint32_t)area_toc->size * SACD_LSN_SIZE - area_toc->pos)
 
     COPY_AREA_TEXT(description, area_description_offset);
     COPY_AREA_TEXT(copyright, copyright_offset);
@@ -279,18 +289,20 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
         if (strncmp((char *)p, "SACDTTxt", 8) == 0) {
             if (sacd_text_idx == 0) {
                 area_text_t *area_text = area->area_text = (area_text_t *)p;
+                char *text_end = (char *)p + SACD_LSN_SIZE;
                 for (int i = 0; i < area_toc->track_count; i++) {
                     SWAP16(area_text->track_text_position[i]);
-                    if (area_text->track_text_position[i] > 0) {
+                    if (area_text->track_text_position[i] > 0 &&
+                        area_text->track_text_position[i] < SACD_LSN_SIZE - 4) {
                         char *track_ptr = (char *)p + area_text->track_text_position[i];
                         uint8_t track_amount = *track_ptr;
                         track_ptr += 4;
-                        for (int j = 0; j < track_amount; j++) {
+                        for (int j = 0; j < track_amount && track_ptr + 2 < text_end; j++) {
                             uint8_t track_type = *track_ptr++;
                             track_ptr++;
                             if (*track_ptr) {
-                                int len = strlen(track_ptr);
-                                char *converted = strdup(track_ptr);
+                                size_t len = strnlen(track_ptr, text_end - track_ptr);
+                                char *converted = strndup(track_ptr, len);
 #define SET_TEXT(type, field) \
     case type: \
         area->area_track_text[i].field = converted; break
@@ -314,8 +326,8 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
 #undef SET_TEXT
                             }
                             if (j < track_amount - 1) {
-                                while (*track_ptr) track_ptr++;
-                                while (!*track_ptr) track_ptr++;
+                                while (track_ptr < text_end && *track_ptr) track_ptr++;
+                                while (track_ptr < text_end && !*track_ptr) track_ptr++;
                             }
                         }
                     }

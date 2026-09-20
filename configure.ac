@@ -828,7 +828,7 @@ AS_IF([test "${enable_vfs_zip}" != "no"], [
 ])
 
 AS_IF([test "${enable_sacd_iso}" != "no"], [
-    PKG_CHECK_MODULES([AVCODEC], [libavcodec libavutil], [HAVE_SACD_ISO=yes], [HAVE_SACD_ISO=no])
+    HAVE_SACD_ISO=yes
 ])
 
 AS_IF([test "${enable_converter}" != "no"], [

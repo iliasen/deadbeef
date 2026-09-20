@@ -7,5 +7,6 @@
         "icons":true,
         "osx/build":true,
         "autom4te.cache":true,
-    }
+    },
+    "cmake.sourceDirectory": "/home/iliasen/Work/deadbeef/plugins/gme/game-music-emu-0.6pre"
 }

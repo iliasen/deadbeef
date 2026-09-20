@@ -5,17 +5,7 @@
 #include "scarletbook_read.h"
 #include "endianess.h"
 
-#define AUDIO_SECTOR_HEADER_SIZE 1
-#define AUDIO_PACKET_INFO_SIZE 2
-#define AUDIO_FRAME_INFO_SIZE 4
 #define MAX_PACKET_SIZE 2045
-#define MAX_DST_SIZE (1024 * 64)
-#define FRAME_SIZE_64 4704
-#define SACD_FRAME_RATE 75
-
-#define DATA_TYPE_AUDIO 2
-#define DATA_TYPE_SUPPLEMENTARY 3
-#define DATA_TYPE_PADDING 7
 
 static inline int get_channel_count(const audio_frame_info_t *fi) {
     if (fi->channel_bit_2 == 1 && fi->channel_bit_3 == 0) return 6;
@@ -25,7 +15,9 @@ static inline int get_channel_count(const audio_frame_info_t *fi) {
 
 static inline void exec_callback(scarletbook_handle_t *h, frame_read_callback_t cb, void *ud) {
     h->frame.started = 0;
-    cb(h, h->frame.data, h->frame.size, ud);
+    if (cb) {
+        cb(h, h->frame.data, h->frame.size, ud);
+    }
 }
 
 void scarletbook_frame_init(scarletbook_handle_t *handle) {
@@ -75,17 +67,25 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
         }
 
         handle->frame_info_idx = 0;
+        uint8_t *sector_end = read_buffer + (j + 1) * SACD_LSN_SIZE;
         for (uint8_t pi = 0; pi < handle->audio_sector.header.packet_info_count; pi++) {
             audio_packet_info_t *pkt = &handle->audio_sector.packet[pi];
-            if (pkt->packet_length > MAX_PACKET_SIZE) {
+            if (pkt->packet_length > MAX_PACKET_SIZE ||
+                block_ptr + pkt->packet_length > sector_end) {
                 sector_bad_reads = 1;
-                block_ptr += pkt->packet_length;
-                continue;
+                handle->frame.started = 0;
+                break;
             }
 
             switch (pkt->data_type) {
                 case DATA_TYPE_AUDIO:
                     if (pkt->frame_start) {
+                        if (handle->frame_info_idx >= handle->audio_sector.header.frame_info_count) {
+                            sector_bad_reads = 1;
+                            handle->frame.started = 0;
+                            block_ptr += pkt->packet_length;
+                            continue;
+                        }
                         if (handle->frame.started && handle->frame.size > 0) {
                             if ((handle->frame.dst_encoded && handle->frame.sector_count == 0) ||
                                 (!handle->frame.dst_encoded && handle->frame.size == handle->frame.channel_count * FRAME_SIZE_64)) {
@@ -98,7 +98,9 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
                         handle->frame.sector_count = handle->audio_sector.frame[handle->frame_info_idx].sector_count;
                         handle->frame.channel_count = get_channel_count(&handle->audio_sector.frame[handle->frame_info_idx]);
                         handle->frame.started = 1;
-                        handle->frame.timecode = handle->audio_sector.frame[handle->frame_info_idx].timecode;
+                        handle->frame.timecode.minutes = handle->audio_sector.frame[handle->frame_info_idx].timecode.minutes;
+                        handle->frame.timecode.seconds = handle->audio_sector.frame[handle->frame_info_idx].timecode.seconds;
+                        handle->frame.timecode.frames = handle->audio_sector.frame[handle->frame_info_idx].timecode.frames;
                         handle->frame_info_idx++;
                     }
                     if (handle->frame.started) {
