@@ -6,10 +6,12 @@ rm -f sacd_iso.so
 
 echo "Компилируем плагин..."
 
-gcc -shared -fPIC \
+g++ -shared -fPIC \
     -O2 -Wall \
+    -std=c++17 \
     -I../../include \
     -Ilibsacd \
+    -Ilibsacd/dst2 \
     sacd_iso.c \
     dsd2pcm.c \
     libsacd/sacd_reader.c \
@@ -17,13 +19,8 @@ gcc -shared -fPIC \
     libsacd/scarletbook.c \
     libsacd/scarletbook_helpers.c \
     libsacd/scarletbook_read.c \
-    libsacd/dst_decoder.c \
-    libsacd/dst/ccp_calc.c \
-    libsacd/dst/dst_ac.c \
-    libsacd/dst/dst_data.c \
-    libsacd/dst/dst_fram.c \
-    libsacd/dst/dst_init.c \
-    libsacd/dst/unpack_dst.c \
+    libsacd/dst_decoder.cpp \
+    libsacd/dst2/decoder/decoder.cpp \
     -lm \
     -o sacd_iso.so
 

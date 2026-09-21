@@ -744,18 +744,14 @@ project "sacd_iso"
     "plugins/sacd_iso/libsacd/scarletbook_helpers.c",
     "plugins/sacd_iso/libsacd/sacd_input.c",
     "plugins/sacd_iso/libsacd/sacd_reader.c",
-    "plugins/sacd_iso/libsacd/dst_decoder.c",
-    "plugins/sacd_iso/libsacd/dst/ccp_calc.c",
-    "plugins/sacd_iso/libsacd/dst/dst_ac.c",
-    "plugins/sacd_iso/libsacd/dst/dst_data.c",
-    "plugins/sacd_iso/libsacd/dst/dst_fram.c",
-    "plugins/sacd_iso/libsacd/dst/dst_init.c",
-    "plugins/sacd_iso/libsacd/dst/unpack_dst.c",
+    "plugins/sacd_iso/libsacd/dst_decoder.cpp",
+    "plugins/sacd_iso/libsacd/dst2/decoder/decoder.cpp",
   }
   includedirs {
     "plugins/sacd_iso/libsacd",
+    "plugins/sacd_iso/libsacd/dst2",
   }
-  links {"m"}
+  links {"m", "stdc++"}
 end
 
 if option ("plugin-vtx") then

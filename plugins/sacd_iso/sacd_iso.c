@@ -106,10 +106,11 @@ frame_cb (scarletbook_handle_t *handle, uint8_t *data, int size, void *userdata)
     sacd_fileinfo_t *info = userdata;
     if (info->is_dst) {
         size_t out_size = info->dst_dsd_size;
-        if (dst_decoder_decode (info->dst_dec, data, (size_t)size, info->dst_dsd_buffer, &out_size) == 0) {
-            queue_append (info, info->dst_dsd_buffer, out_size);
+        if (dst_decoder_decode (info->dst_dec, data, (size_t)size, info->dst_dsd_buffer, &out_size) != 0) {
+            // decode error: keep the timeline gapless - substitute DSD silence
+            memset (info->dst_dsd_buffer, 0x55, out_size);
         }
-        // decode errors: drop the frame
+        queue_append (info, info->dst_dsd_buffer, out_size);
     }
     else {
         queue_append (info, data, (size_t)size);
