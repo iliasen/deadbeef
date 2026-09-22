@@ -229,8 +229,21 @@ sacd_dec_init (DB_fileinfo_t *_info, DB_playItem_t *it) {
     info->is_dst = (area->area_toc->frame_format == FRAME_FORMAT_DST);
     free (fname);
 
+    /* Set metadata for deadbeef status bar */
     info->area_idx = area_idx;
     info->channels = area->area_toc->channel_count;
+
+    int sample_rate = 2822400;
+    int bps = 1;
+    int channels = info->channels;
+
+    int bitrate = (sample_rate * bps * channels) / 1000;
+
+    deadbeef->pl_set_meta_int (it, ":SAMPLERATE", sample_rate);
+    deadbeef->pl_set_meta_int (it, ":BPS", bps);
+    deadbeef->pl_set_meta_int (it, ":CHANNELS", channels);
+    deadbeef->pl_set_meta_int (it, ":BITRATE", bitrate);
+
     info->start_lsn = area->area_tracklist_offset->track_start_lsn[track_idx];
     info->length_lsn = area->area_tracklist_offset->track_length_lsn[track_idx];
     info->current_lsn = info->start_lsn;
@@ -325,6 +338,8 @@ sacd_dec_read (DB_fileinfo_t *_info, char *buffer, int nbytes) {
 
     info->frames_played += done;
     _info->readpos = (float)((double)info->frames_played / PCM_RATE);
+    
+    deadbeef->streamer_set_bitrate ((2822400 * 1 * info->channels) / 1000);
     return done * frame_bytes;
 }
 
@@ -448,7 +463,6 @@ sacd_dec_insert (ddb_playlist_t *plt, DB_playItem_t *after, const char *fname) {
             deadbeef->pl_add_meta (it, "album", album);
         }
 
-        deadbeef->pl_add_meta (it, ":FILETYPE", "SACD");
         deadbeef->plt_set_item_duration (plt, it, track_duration_sec (area, i));
 
         if (count > 1) {

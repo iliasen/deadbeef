@@ -289,11 +289,15 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
         if (strncmp((char *)p, "SACDTTxt", 8) == 0) {
             if (sacd_text_idx == 0) {
                 area_text_t *area_text = area->area_text = (area_text_t *)p;
-                char *text_end = (char *)p + SACD_LSN_SIZE;
+                // Track text records may span several sectors; positions are
+                // relative to the start of the SACDTTxt block, so bound them
+                // by the end of the area data, not by a single sector.
+                char *text_end = (char *)end;
+                uint32_t block_size = (uint32_t)(text_end - (char *)p);
                 for (int i = 0; i < area_toc->track_count; i++) {
                     SWAP16(area_text->track_text_position[i]);
                     if (area_text->track_text_position[i] > 0 &&
-                        area_text->track_text_position[i] < SACD_LSN_SIZE - 4) {
+                        area_text->track_text_position[i] < block_size - 4) {
                         char *track_ptr = (char *)p + area_text->track_text_position[i];
                         uint8_t track_amount = *track_ptr;
                         track_ptr += 4;

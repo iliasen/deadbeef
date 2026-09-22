@@ -9,8 +9,7 @@ sacd_iso_la_SOURCES = \
 	libsacd/scarletbook_helpers.c \
 	libsacd/sacd_input.c \
 	libsacd/sacd_reader.c \
-	libsacd/dst_decoder.cpp \
-	libsacd/dst2/decoder/decoder.cpp
+	libsacd/dst_ff.c
 
 sacd_iso_la_LDFLAGS = -module -avoid-version -export-symbols-regex sacd_iso_load
 
