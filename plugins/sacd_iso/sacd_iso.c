@@ -104,15 +104,17 @@ queue_append (sacd_fileinfo_t *info, const uint8_t *data, size_t size) {
 static void
 frame_cb (scarletbook_handle_t *handle, uint8_t *data, int size, void *userdata) {
     sacd_fileinfo_t *info = userdata;
-    if (info->is_dst) {
+    if (size <= 0) { return; }
+    if (info->is_dst && info->dst_dec) {
         size_t out_size = info->dst_dsd_size;
-        if (dst_decoder_decode (info->dst_dec, data, (size_t)size, info->dst_dsd_buffer, &out_size) != 0) {
-            // decode error: keep the timeline gapless - substitute DSD silence
-            memset (info->dst_dsd_buffer, 0x55, out_size);
+        if (dst_decoder_decode (info->dst_dec, data, (size_t)size,
+                                info->dst_dsd_buffer, &out_size) != 0) {
+            memset (info->dst_dsd_buffer, 0x55, info->dst_dsd_size);
+            out_size = info->dst_dsd_size;
         }
         queue_append (info, info->dst_dsd_buffer, out_size);
     }
-    else {
+    else if (!info->is_dst) {
         queue_append (info, data, (size_t)size);
     }
     (void)handle;
@@ -178,32 +180,36 @@ static DB_fileinfo_t *
 sacd_dec_open (uint32_t hints) {
     (void)hints;
     sacd_fileinfo_t *info = calloc (1, sizeof (*info));
+    if (!info) return NULL;
     return &info->info;
 }
 
 static int
 sacd_dec_init (DB_fileinfo_t *_info, DB_playItem_t *it) {
     sacd_fileinfo_t *info = (sacd_fileinfo_t *)_info;
+    int ret = -1;
+    char *fname = NULL;
 
     deadbeef->pl_lock ();
-    char *fname = strdup (deadbeef->pl_find_meta (it, ":URI"));
+    fname = strdup (deadbeef->pl_find_meta (it, ":URI"));
     deadbeef->pl_unlock ();
+    if (!fname) {
+        return -1;
+    }
 
-    int track_idx = deadbeef->pl_find_meta_int (it, ":TRACKNUM", 0);
-    int area_idx = deadbeef->pl_find_meta_int (it, ":SACD_AREA", -1);
+    int track_idx = deadbeef->pl_find_meta_int (it, ":TRACKNUM", 1) - 1;
+    int area_idx  = deadbeef->pl_find_meta_int (it, ":SACD_AREA", -1);
 
     info->sacd = sacd_open (fname);
     if (!info->sacd) {
         trace ("sacd_iso: failed to open %s\n", fname);
-        free (fname);
-        return -1;
+        goto out;
     }
 
     info->handle = scarletbook_open (info->sacd);
     if (!info->handle) {
         trace ("sacd_iso: %s is not a valid SACD image\n", fname);
-        free (fname);
-        return -1;
+        goto out;
     }
 
     if (area_idx < 0) {
@@ -211,50 +217,47 @@ sacd_dec_init (DB_fileinfo_t *_info, DB_playItem_t *it) {
     }
     if (area_idx < 0 || area_idx >= info->handle->area_count) {
         trace ("sacd_iso: no usable area in %s\n", fname);
-        free (fname);
-        return -1;
+        goto out;
     }
 
     scarletbook_area_t *area = &info->handle->area[area_idx];
     if (!area->area_toc || !area->area_tracklist_offset) {
         trace ("sacd_iso: corrupted area TOC in %s\n", fname);
-        free (fname);
-        return -1;
+        goto out;
     }
     if (track_idx < 0 || track_idx >= area->area_toc->track_count) {
         trace ("sacd_iso: track %d out of range in %s\n", track_idx, fname);
-        free (fname);
-        return -1;
+        goto out;
     }
-    info->is_dst = (area->area_toc->frame_format == FRAME_FORMAT_DST);
-    free (fname);
 
-    /* Set metadata for deadbeef status bar */
+    info->is_dst = ((enum frame_format_t)area->area_toc->frame_format == FRAME_FORMAT_DST);
     info->area_idx = area_idx;
     info->channels = area->area_toc->channel_count;
 
     int sample_rate = 2822400;
-    int bps = 1;
-    int channels = info->channels;
-
-    int bitrate = (sample_rate * bps * channels) / 1000;
-
+    int bitrate = (sample_rate * 1 * info->channels) / 1000;
     deadbeef->pl_set_meta_int (it, ":SAMPLERATE", sample_rate);
-    deadbeef->pl_set_meta_int (it, ":BPS", bps);
-    deadbeef->pl_set_meta_int (it, ":CHANNELS", channels);
+    deadbeef->pl_set_meta_int (it, ":BPS", 1);
+    deadbeef->pl_set_meta_int (it, ":CHANNELS", info->channels);
     deadbeef->pl_set_meta_int (it, ":BITRATE", bitrate);
 
-    info->start_lsn = area->area_tracklist_offset->track_start_lsn[track_idx];
-    info->length_lsn = area->area_tracklist_offset->track_length_lsn[track_idx];
-    info->current_lsn = info->start_lsn;
-    info->end_lsn = info->start_lsn + info->length_lsn;
+
+    info->start_lsn    = area->area_tracklist_offset->track_start_lsn[track_idx];
+    info->length_lsn   = area->area_tracklist_offset->track_length_lsn[track_idx];
+    info->current_lsn  = info->start_lsn;
+    info->end_lsn      = info->start_lsn + info->length_lsn;
     info->duration_sec = track_duration_sec (area, track_idx);
 
     info->read_buffer = malloc (SECTORS_PER_READ * SACD_LSN_SIZE);
-    info->d2p = dsd2pcm_create (info->channels, DECIM);
-    if (!info->read_buffer || !info->d2p) {
+    if (!info->read_buffer) {
         trace ("sacd_iso: out of memory\n");
-        return -1;
+        goto out;
+    }
+
+    info->d2p = dsd2pcm_create (info->channels, DECIM);
+    if (!info->d2p) {
+        trace ("sacd_iso: failed to create decimator\n");
+        goto out;
     }
 
     if (info->is_dst) {
@@ -263,39 +266,38 @@ sacd_dec_init (DB_fileinfo_t *_info, DB_playItem_t *it) {
         info->dst_dsd_buffer = malloc (info->dst_dsd_size);
         if (!info->dst_dec || !info->dst_dsd_buffer) {
             trace ("sacd_iso: failed to init DST decoder\n");
-            return -1;
+            goto out;
         }
     }
 
     scarletbook_frame_init (info->handle);
 
     _info->plugin = &plugin;
-    _info->fmt.bps = 32;
-    _info->fmt.is_float = 1;
-    _info->fmt.channels = info->channels;
+    _info->fmt.bps        = 32;
+    _info->fmt.is_float   = 1;
+    _info->fmt.channels   = info->channels;
     _info->fmt.samplerate = PCM_RATE;
     for (int i = 0; i < info->channels; i++) {
         _info->fmt.channelmask |= 1 << i;
     }
     _info->readpos = 0;
-    return 0;
+    ret = 0;
+
+out:
+    free (fname);
+    return ret;
 }
 
 static void
 sacd_dec_free (DB_fileinfo_t *_info) {
     sacd_fileinfo_t *info = (sacd_fileinfo_t *)_info;
-    if (!info) {
-        return;
-    }
-    if (info->handle) {
-        scarletbook_close (info->handle);
-    }
-    if (info->sacd) {
-        sacd_close (info->sacd);
-    }
-    dst_decoder_destroy (info->dst_dec);
+    if (!info) return;
+
+    if (info->handle) scarletbook_close (info->handle);
+    if (info->sacd)   sacd_close (info->sacd);
+    if (info->dst_dec) dst_decoder_destroy (info->dst_dec);
+    if (info->d2p)     dsd2pcm_destroy (info->d2p);
     free (info->dst_dsd_buffer);
-    dsd2pcm_destroy (info->d2p);
     free (info->read_buffer);
     free (info->dsd_queue);
     free (info->pcm_buffer);
@@ -310,6 +312,7 @@ sacd_dec_read (DB_fileinfo_t *_info, char *buffer, int nbytes) {
     int done = 0;
 
     while (done < want_frames) {
+        if (info->eof) break;
         if (info->pcm_pos >= info->pcm_frames) {
             info->pcm_frames = 0;
             info->pcm_pos = 0;
@@ -339,7 +342,11 @@ sacd_dec_read (DB_fileinfo_t *_info, char *buffer, int nbytes) {
     info->frames_played += done;
     _info->readpos = (float)((double)info->frames_played / PCM_RATE);
     
-    deadbeef->streamer_set_bitrate ((2822400 * 1 * info->channels) / 1000);
+    if (!info->bitrate_set) {
+        deadbeef->streamer_set_bitrate ((2822400 * info->channels) / 1000);
+        info->bitrate_set = 1;
+    }
+
     return done * frame_bytes;
 }
 
@@ -364,6 +371,10 @@ sacd_dec_seek_sample (DB_fileinfo_t *_info, int sample) {
         if (info->dst_dec) {
             dst_decoder_destroy (info->dst_dec);
             info->dst_dec = dst_decoder_create (info->channels);
+            if (!info->dst_dec) {
+                trace ("sacd_iso: failed to recreate DST decoder on seek\n");
+                return -1;
+            }
         }
     }
     else {
@@ -412,28 +423,46 @@ sacd_dec_insert (ddb_playlist_t *plt, DB_playItem_t *after, const char *fname) {
     scarletbook_handle_t *handle = scarletbook_open (sacd);
     if (!handle) {
         sacd_close (sacd);
-        return NULL; // not a SACD image
+        return NULL;
     }
 
     int area_idx = pick_area (handle);
     if (area_idx < 0) {
         trace ("sacd_iso: no audio areas found in %s\n", fname);
-        scarletbook_close (handle);
-        sacd_close (sacd);
-        return NULL;
+        goto fail;
     }
 
     scarletbook_area_t *area = &handle->area[area_idx];
     if (!area->area_toc || !area->area_tracklist_offset) {
         trace ("sacd_iso: corrupted area TOC in %s\n", fname);
-        scarletbook_close (handle);
-        sacd_close (sacd);
-        return NULL;
+        goto fail;
     }
 
     int count = area->area_toc->track_count;
-    const char *album = handle->master_text.album_title;
+    if (count <= 0) {
+        goto fail;
+    }
+
+    const char *album        = handle->master_text.album_title;
     const char *album_artist = handle->master_text.album_artist;
+    const char *publisher    = handle->master_text.album_publisher;
+    const char *copyright    = handle->master_text.album_copyright;
+
+    /* genre: индекс в album_genre[], если в допустимых пределах */
+    const char *genre = NULL;
+    if (handle->master_toc) {
+        uint8_t gi = handle->master_toc->album_genre[0].genre;
+        if (gi < MAX_GENRE_COUNT && album_genre[gi] && *album_genre[gi]) {
+            genre = album_genre[gi];
+        }
+    }
+
+    /* year: из disc_date_year (uint16_t) */
+    char year_buf[8] = {0};
+    if (handle->master_toc && handle->master_toc->disc_date_year) {
+        snprintf (year_buf, sizeof (year_buf), "%u",
+                  (unsigned)handle->master_toc->disc_date_year);
+    }
 
     for (int i = 0; i < count; i++) {
         DB_playItem_t *it = deadbeef->pl_item_alloc_init (fname, plugin.plugin.id);
@@ -441,32 +470,53 @@ sacd_dec_insert (ddb_playlist_t *plt, DB_playItem_t *after, const char *fname) {
             break;
         }
 
-        deadbeef->pl_set_meta_int (it, ":TRACKNUM", i);
+        deadbeef->pl_set_meta_int (it, ":TRACKNUM", i + 1);   /* 1-based */
         deadbeef->pl_set_meta_int (it, ":SACD_AREA", area_idx);
+        deadbeef->pl_set_meta_int (it, ":TOTALTRACKS", count);
 
-        char trk[10];
+        char trk[16];
         snprintf (trk, sizeof (trk), "%d", i + 1);
         deadbeef->pl_add_meta (it, "track", trk);
 
-        const char *title = area->area_track_text[i].track_type_title;
+        const char *title     = area->area_track_text[i].track_type_title;
+        const char *performer = area->area_track_text[i].track_type_performer;
+        const char *composer  = area->area_track_text[i].track_type_composer;
+
         if (title && *title) {
             deadbeef->pl_add_meta (it, "title", title);
         }
-        const char *performer = area->area_track_text[i].track_type_performer;
         if (performer && *performer) {
             deadbeef->pl_add_meta (it, "artist", performer);
-        }
-        else if (album_artist && *album_artist) {
+        } else if (album_artist && *album_artist) {
             deadbeef->pl_add_meta (it, "artist", album_artist);
+        }
+        if (composer && *composer) {
+            deadbeef->pl_add_meta (it, "composer", composer);
         }
         if (album && *album) {
             deadbeef->pl_add_meta (it, "album", album);
+        }
+        if (album_artist && *album_artist) {
+            deadbeef->pl_add_meta (it, "albumartist", album_artist);
+        }
+        if (publisher && *publisher) {
+            deadbeef->pl_add_meta (it, "publisher", publisher);
+        }
+        if (copyright && *copyright) {
+            deadbeef->pl_add_meta (it, "copyright", copyright);
+        }
+        if (genre) {
+            deadbeef->pl_add_meta (it, "genre", genre);
+        }
+        if (year_buf[0]) {
+            deadbeef->pl_add_meta (it, "year", year_buf);
         }
 
         deadbeef->plt_set_item_duration (plt, it, track_duration_sec (area, i));
 
         if (count > 1) {
-            deadbeef->pl_set_item_flags (it, deadbeef->pl_get_item_flags (it) | DDB_IS_SUBTRACK);
+            deadbeef->pl_set_item_flags (it,
+                deadbeef->pl_get_item_flags (it) | DDB_IS_SUBTRACK);
         }
 
         after = deadbeef->plt_insert_item (plt, after, it);
@@ -476,6 +526,11 @@ sacd_dec_insert (ddb_playlist_t *plt, DB_playItem_t *after, const char *fname) {
     scarletbook_close (handle);
     sacd_close (sacd);
     return after;
+
+fail:
+    scarletbook_close (handle);
+    sacd_close (sacd);
+    return NULL;
 }
 
 static int

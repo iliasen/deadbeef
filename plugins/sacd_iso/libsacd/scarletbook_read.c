@@ -61,11 +61,6 @@ int scarletbook_process_frames(scarletbook_handle_t *handle, uint8_t *read_buffe
             }
         }
 
-        if (handle->audio_sector.header.packet_info_count > 7) {
-            sector_bad_reads = 1;
-            handle->frame.started = 0;
-        }
-
         handle->frame_info_idx = 0;
         uint8_t *sector_end = read_buffer + (j + 1) * SACD_LSN_SIZE;
         for (uint8_t pi = 0; pi < handle->audio_sector.header.packet_info_count; pi++) {

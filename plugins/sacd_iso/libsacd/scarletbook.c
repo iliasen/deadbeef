@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <stdio.h>
 #include "scarletbook.h"
 #include "scarletbook_read.h"
 #include "sacd_reader.h"
@@ -27,8 +26,7 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd) {
     sb->mulch_area_idx = -1;
 
     if (!scarletbook_read_master_toc(sb)) {
-        free(sb->frame.data);
-        free(sb);
+        scarletbook_close(sb);
         return NULL;
     }
 
@@ -106,8 +104,7 @@ scarletbook_handle_t *scarletbook_open(sacd_reader_t *sacd) {
     }
 
     if (sb->area_count == 0) {
-        free(sb->frame.data);
-        free(sb);
+        scarletbook_close(sb);
         return NULL;
     }
 
@@ -244,6 +241,12 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
     scarletbook_area_t *area = &handle->area[area_idx];
     area_toc_t *area_toc = area->area_toc = (area_toc_t *)area->area_data;
 
+    if (area_toc->version.major > SUPPORTED_VERSION_MAJOR ||
+        area_toc->version.minor > SUPPORTED_VERSION_MINOR) {
+        area->area_toc = NULL;
+        return 0;
+    }
+
     if (strncmp("TWOCHTOC", area_toc->id, 8) != 0 &&
         strncmp("MULCHTOC", area_toc->id, 8) != 0)
         return 0;
@@ -271,10 +274,6 @@ static int scarletbook_read_area_toc(scarletbook_handle_t *handle, int area_idx)
     COPY_AREA_TEXT(description_phonetic, area_description_phonetic_offset);
     COPY_AREA_TEXT(copyright_phonetic, copyright_phonetic_offset);
 #undef COPY_AREA_TEXT
-
-    if (area_toc->version.major > SUPPORTED_VERSION_MAJOR ||
-        area_toc->version.minor > SUPPORTED_VERSION_MINOR)
-        return 0;
 
     if (area_toc->channel_count == 2 && area_toc->loudspeaker_config == 0)
         handle->twoch_area_idx = area_idx;

@@ -40,7 +40,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef DST_DEBUG
 #include <stdio.h>
+#endif
 
 #include "dst_decoder.h"
 
@@ -356,15 +358,17 @@ dst_decoder_decode (dst_decoder_t *dec, const uint8_t *dst_data, size_t dst_size
     unsigned int i, ch, same_map;
     int dst_x_bit;
     unsigned int half_prob[DST_MAX_CHANNELS];
+
+    if (!dec || !dst_data || !dsd_out || !dsd_out_size) {
+        return -1;
+    }
+
     const int channels = dec->channels;
     const size_t frame_bytes = (size_t)DST_FRAME_BYTES_PER_CH * channels;
     ArithCoder *ac = &dec->ac;
     bitreader gb_s, *gb = &gb_s;
     int ret = -1;
 
-    if (!dec || !dst_data || !dsd_out || !dsd_out_size) {
-        return -1;
-    }
     // Always report a full output frame so the caller never loses a frame;
     // on error the caller substitutes DSD silence.
     if (*dsd_out_size < frame_bytes) {
@@ -491,6 +495,10 @@ dst_decoder_decode (dst_decoder_t *dec, const uint8_t *dst_data, size_t dst_size
     return 0;
 
 fail:
+#ifdef DST_DEBUG
     fprintf (stderr, "ERROR in dst_decoder(ffmpeg): frame %llu substituted with silence\n", frame_no);
+#else
+    (void)frame_no;
+#endif
     return ret;
 }

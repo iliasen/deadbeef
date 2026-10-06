@@ -123,13 +123,12 @@ dsd2pcm_process(dsd2pcm_t *t, const uint8_t *dsd, size_t nbytes, float *out, siz
                     for (int ch = 0; ch < channels; ch++) {
                         // dot product of the ring buffer with the FIR coefficients
                         const float *h = t->hist[ch];
-                        int p = t->pos;
+                        int p = (t->pos + 1) % ntaps;
                         float acc = 0.0f;
+
                         for (int k = 0; k < ntaps; k++) {
                             acc += t->coeffs[k] * h[p];
-                            if (--p < 0) {
-                                p = ntaps - 1;
-                            }
+                            if (++p == ntaps) p = 0;
                         }
                         out[frames * channels + ch] = acc;
                     }
